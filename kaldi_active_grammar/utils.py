@@ -56,8 +56,7 @@ def debug_timer(log, desc, enabled=True, independent=False):
     if not independent: _debug_timer_stack.append(start_time)
     spent_time_func = lambda: time.time() - start_time
     yield spent_time_func
-    if not independent: start_time_adjusted = _debug_timer_stack.pop()
-    else: start_time_adjusted = 0
+    start_time_adjusted = 0 if independent else _debug_timer_stack.pop()
     if enabled:
         if debug_timer_enabled:
             log("%s %d ms" % (desc, (time.time() - start_time_adjusted) * 1000))
@@ -167,7 +166,7 @@ def clear_file(filename):
     with open(filename, 'wb'):
         pass
 
-symbol_table_lookup_cache = dict()
+symbol_table_lookup_cache = {}
 
 def symbol_table_lookup(filename, input):
     """
@@ -231,7 +230,8 @@ class FSTFileCache(object):
 
         self.cache_filename = cache_filename
         self.tmp_dir = tmp_dir
-        if dependencies_dict is None: dependencies_dict = dict()
+        if dependencies_dict is None:
+            dependencies_dict = {}
         self.dependencies_dict = dependencies_dict
         self.lock = threading.Lock()
 

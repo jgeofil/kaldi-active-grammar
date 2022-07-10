@@ -250,10 +250,13 @@ class KaldiNNet3Decoder(KaldiDecoderBase):
             '--ivector-extractor':  'ivector_extractor/final.ie',
         }
         def convert_path(key, value):
-            if not search:
-                return os.path.join(model_dir, options_with_path[key])
-            else:
-                return find_file(model_dir, os.path.basename(options_with_path[key]), required=True)
+            return (
+                find_file(
+                    model_dir, os.path.basename(options_with_path[key]), required=True
+                )
+                if search
+                else os.path.join(model_dir, options_with_path[key])
+            )
         options_converters = {
             '--splice-config':          convert_path,
             '--cmvn-config':            convert_path,
@@ -472,7 +475,7 @@ class KaldiAgfNNet3Decoder(KaldiNNet3Decoder):
         _log.debug("%s: removing grammar_fst_index: %s", self, grammar_fst_index)
         result = self._lib.nnet3_agf__remove_grammar_fst(self._model, grammar_fst_index)
         if not result:
-            raise KaldiError("error removing grammar #%s" % grammar_fst_index)
+            raise KaldiError(f"error removing grammar #{grammar_fst_index}")
         self.num_grammars -= 1
 
     def decode(self, frames, finalize, grammars_activity=None):
@@ -527,7 +530,13 @@ class KaldiAgfCompiler(FFIObject):
             self._compiler = None
 
     def compile_graph(self, config, grammar_fst=None, grammar_fst_text=None, grammar_fst_file=None, return_graph=False):
-        if 1 != sum(int(g is not None) for g in [grammar_fst, grammar_fst_text, grammar_fst_file]):
+        if (
+            sum(
+                int(g is not None)
+                for g in [grammar_fst, grammar_fst_text, grammar_fst_file]
+            )
+            != 1
+        ):
             raise ValueError("must pass exactly one grammar")
         if grammar_fst is not None:
             _log.log(5, "compile_graph:\n    config=%r\n    grammar_fst=%r", config, grammar_fst)
@@ -612,7 +621,7 @@ class KaldiLafNNet3Decoder(KaldiNNet3Decoder):
         _log.debug("%s: removing grammar_fst_index: %s", self, grammar_fst_index)
         result = self._lib.nnet3_laf__remove_grammar_fst(self._model, grammar_fst_index)
         if not result:
-            raise KaldiError("error removing grammar #%s" % grammar_fst_index)
+            raise KaldiError(f"error removing grammar #{grammar_fst_index}")
         self.num_grammars -= 1
 
     def decode(self, frames, finalize, grammars_activity=None):

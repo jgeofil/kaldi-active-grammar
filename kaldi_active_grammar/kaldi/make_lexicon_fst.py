@@ -53,8 +53,7 @@ def get_args():
                         help="""Filename of lexicon with pronunciation probabilities
                         (normally lexiconp.txt), with lines of the form 'word prob p1 p2...',
                         e.g. 'a   1.0    ay'""")
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 def read_lexiconp(filename):
@@ -109,7 +108,7 @@ def read_lexiconp(filename):
               "in {1}".format(sys.argv[0], filename), file=sys.stderr)
 
 
-    if len(ans) == 0:
+    if not ans:
         print("{0}: error: found no pronunciations in lexicon file {1}".format(
             sys.argv[0], filename), file=sys.stderr)
         sys.exit(1)
@@ -325,7 +324,7 @@ def read_nonterminals(filename):
        symbols as a list of strings, e.g.
        ['#nonterm:contact_list', '#nonterm:phone_number', ... ]. """
     ans = [line.strip(" \t\r\n") for line in open(filename, 'r', encoding='latin-1')]
-    if len(ans) == 0:
+    if not ans:
         raise RuntimeError("The file {0} contains no nonterminals symbols.".format(filename))
     for nonterm in ans:
         if nonterm[:9] != '#nonterm:':
@@ -339,7 +338,7 @@ def read_left_context_phones(filename):
     """Reads, checks, and returns a list of left-context phones, in text form, one
        per line.  Returns a list of strings, e.g. ['a', 'ah', ..., '#nonterm_bos' ]"""
     ans = [line.strip(" \t\r\n") for line in open(filename, 'r', encoding='latin-1')]
-    if len(ans) == 0:
+    if not ans:
         raise RuntimeError("The file {0} contains no left-context phones.".format(filename))
     whitespace = re.compile("[ \t]+")
     for s in ans:

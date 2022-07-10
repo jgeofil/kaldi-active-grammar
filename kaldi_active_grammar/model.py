@@ -93,9 +93,7 @@ class Lexicon(object):
                 new_phones.append(new_phone)
             else:
                 # Add each individual 1-letter phone
-                for match in re.finditer(r"('?).", new_phone):
-                    new_phones.append(match.group(0))
-
+                new_phones.extend(match.group(0) for match in re.finditer(r"('?).", new_phone))
         return new_phones
 
     def phones_cmu_to_xsampa(self, phones):
@@ -118,10 +116,8 @@ class Lexicon(object):
             files = {'wordfile': ('wordfile', word)}
             req = requests.post('http://www.speech.cs.cmu.edu/cgi-bin/tools/logios/lextool.pl', files=files)
             req.raise_for_status()
-            # FIXME: handle network failures
-            match = re.search(r'<!-- DICT (.*)  -->', req.text)
-            if match:
-                url = match.group(1)
+            if match := re.search(r'<!-- DICT (.*)  -->', req.text):
+                url = match[1]
                 req = requests.get(url)
                 req.raise_for_status()
                 entries = req.text.strip().split('\n')
@@ -217,28 +213,54 @@ class Model(object):
             'model_dir': self.model_dir,
             'tmp_dir': self.tmp_dir,
             'words.txt': find_file(self.model_dir, 'words.txt', default=True),
-            'words.base.txt': find_file(self.model_dir, 'words.base.txt', default=True),
+            'words.base.txt': find_file(
+                self.model_dir, 'words.base.txt', default=True
+            ),
             'phones.txt': find_file(self.model_dir, 'phones.txt', default=True),
-            'align_lexicon.int': find_file(self.model_dir, 'align_lexicon.int', default=True),
-            'align_lexicon.base.int': find_file(self.model_dir, 'align_lexicon.base.int', default=True),
-            'disambig.int': find_file(self.model_dir, 'disambig.int', default=True),
-            'L_disambig.fst': find_file(self.model_dir, 'L_disambig.fst', default=True),
+            'align_lexicon.int': find_file(
+                self.model_dir, 'align_lexicon.int', default=True
+            ),
+            'align_lexicon.base.int': find_file(
+                self.model_dir, 'align_lexicon.base.int', default=True
+            ),
+            'disambig.int': find_file(
+                self.model_dir, 'disambig.int', default=True
+            ),
+            'L_disambig.fst': find_file(
+                self.model_dir, 'L_disambig.fst', default=True
+            ),
             'tree': find_file(self.model_dir, 'tree', default=True),
             'final.mdl': find_file(self.model_dir, 'final.mdl', default=True),
             # 'g.irelabel': find_file(self.model_dir, 'g.irelabel', default=True),  # otf
-            'user_lexicon.txt': find_file(self.model_dir, 'user_lexicon.txt', default=True),
-            'left_context_phones.txt': find_file(self.model_dir, 'left_context_phones.txt', default=True),
-            'nonterminals.txt': find_file(self.model_dir, 'nonterminals.txt', default=True),
-            'wdisambig_phones.int': find_file(self.model_dir, 'wdisambig_phones.int', default=True),
-            'wdisambig_words.int': find_file(self.model_dir, 'wdisambig_words.int', default=True),
-            'lexiconp_disambig.txt': find_file(self.model_dir, 'lexiconp_disambig.txt', default=True),
-            'lexiconp_disambig.base.txt': find_file(self.model_dir, 'lexiconp_disambig.base.txt', default=True),
-            'words.relabeled.txt': find_file(self.model_dir, 'words.relabeled.txt', default=True),
-        }
-        self.files_dict.update({ k.replace('.', '_'): v for (k, v) in self.files_dict.items() })  # For named placeholder access in str.format()
+            'user_lexicon.txt': find_file(
+                self.model_dir, 'user_lexicon.txt', default=True
+            ),
+            'left_context_phones.txt': find_file(
+                self.model_dir, 'left_context_phones.txt', default=True
+            ),
+            'nonterminals.txt': find_file(
+                self.model_dir, 'nonterminals.txt', default=True
+            ),
+            'wdisambig_phones.int': find_file(
+                self.model_dir, 'wdisambig_phones.int', default=True
+            ),
+            'wdisambig_words.int': find_file(
+                self.model_dir, 'wdisambig_words.int', default=True
+            ),
+            'lexiconp_disambig.txt': find_file(
+                self.model_dir, 'lexiconp_disambig.txt', default=True
+            ),
+            'lexiconp_disambig.base.txt': find_file(
+                self.model_dir, 'lexiconp_disambig.base.txt', default=True
+            ),
+            'words.relabeled.txt': find_file(
+                self.model_dir, 'words.relabeled.txt', default=True
+            ),
+        } | {k.replace('.', '_'): v for (k, v) in self.files_dict.items()}
+
         self.fst_cache = utils.FSTFileCache(os.path.join(self.model_dir, defaults.FILE_CACHE_FILENAME), dependencies_dict=self.files_dict, tmp_dir=self.tmp_dir)
 
-        self.phone_to_int_dict = { phone: i for phone, i in load_symbol_table(self.files_dict['phones.txt']) }
+        self.phone_to_int_dict = dict(load_symbol_table(self.files_dict['phones.txt']))
         self.lexicon = Lexicon(self.phone_to_int_dict.keys())
         self.nonterm_phones_offset = self.phone_to_int_dict.get('#nonterm_bos')
         if self.nonterm_phones_offset is None: raise KaldiError("missing nonterms in 'phones.txt'")
@@ -284,13 +306,18 @@ class Model(object):
         if phones is None:
             # Not given pronunciation(s), so generate pronunciation(s), then call ourselves recursively for each individual pronunciation
             pronunciations = Lexicon.generate_pronunciations(word, model_dir=self.model_dir, allow_online_pronunciations=allow_online_pronunciations)
-            pronunciations = sum([
-                self.add_word(word, phones, lazy_compilation=True)
-                for phones in pronunciations], [])
+            pronunciations = sum(
+                (
+                    self.add_word(word, phones, lazy_compilation=True)
+                    for phones in pronunciations
+                ),
+                [],
+            )
+
             if not lazy_compilation:
                 self.generate_lexicon_files()
             return pronunciations
-            # FIXME: refactor this function
+                # FIXME: refactor this function
 
         # Now just handle single-pronunciation case...
         phones = self.lexicon.phones_cmu_to_xsampa(phones)
@@ -302,7 +329,10 @@ class Model(object):
             return [phones]
         for tokens in entries:
             if word == tokens[0]:
-                _log.warning("word (with different pronunciation) already in user_lexicon: %s" % tokens[1:])
+                _log.warning(
+                    f"word (with different pronunciation) already in user_lexicon: {tokens[1:]}"
+                )
+
 
         entries.append(new_entry)
         self.write_user_lexicon(entries)
@@ -334,8 +364,11 @@ class Model(object):
             cwd_user_lexicon_entries = [tuple(tokens) for tokens in self.read_user_lexicon(filename=cwd_user_lexicon_filename)]
             model_user_lexicon_entries = [tuple(tokens) for tokens in self.read_user_lexicon(filename=model_user_lexicon_filename)]
             model_user_lexicon_entries_set = set(model_user_lexicon_entries)
-            new_user_lexicon_entries = [tokens for tokens in cwd_user_lexicon_entries if tokens not in model_user_lexicon_entries_set]
-            if new_user_lexicon_entries:
+            if new_user_lexicon_entries := [
+                tokens
+                for tokens in cwd_user_lexicon_entries
+                if tokens not in model_user_lexicon_entries_set
+            ]:
                 _log.info("adding new user lexicon entries from %r", cwd_user_lexicon_filename)
                 entries = model_user_lexicon_entries + new_user_lexicon_entries
                 self.write_user_lexicon(entries, filename=model_user_lexicon_filename)
@@ -429,11 +462,11 @@ class Model(object):
     def generate_words_relabeled_file(words_filename, relabel_filename, words_relabel_filename):
         """ generate a version of the words file, that has already been relabeled with the given relabel file """
         with open(words_filename, 'r', encoding='utf-8') as file:
-            word_id_pairs = [(word, id) for (word, id) in [line.strip().split() for line in file]]
+            word_id_pairs = [line.strip().split() for line in file]
         with open(relabel_filename, 'r', encoding='utf-8') as file:
-            relabel_map = {from_id: to_id for (from_id, to_id) in [line.strip().split() for line in file]}
+            relabel_map = dict([line.strip().split() for line in file])
         word_ids = frozenset(id for (word, id) in word_id_pairs)
-        relabel_from_ids = frozenset(from_id for from_id in relabel_map.keys())
+        relabel_from_ids = frozenset(relabel_map)
         if word_ids < relabel_from_ids:
             _log.warning("generate_words_relabeled_file: word_ids < relabel_from_ids")
         # if word_ids > relabel_from_ids:
@@ -511,7 +544,7 @@ def str_space_join(iterable):
 
 def base_filepath(filepath):
     root, ext = os.path.splitext(filepath)
-    return root + '.base' + ext
+    return f'{root}.base{ext}'
 
 def verify_files_exist(*filenames):
     return False

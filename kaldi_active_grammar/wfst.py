@@ -31,7 +31,7 @@ class WFST(object):
 
     def clear(self):
         self._arc_table_dict = collections.defaultdict(list)  # { src_state: [[src_state, dst_state, label, olabel, weight], ...] }  # list of its outgoing arcs
-        self._state_table = dict()  # { id: weight }
+        self._state_table = {}
         self._next_state_id = 0
         self.start_state = self.add_state()
         self.filename = None
@@ -85,7 +85,7 @@ class WFST(object):
             for (id, weight) in iteritems(self._state_table)
             if weight != 0)
         text = arcs_text + states_text
-        self.filename = fst_cache.hash_data(text, mix_dependencies=True) + '.fst'
+        self.filename = f'{fst_cache.hash_data(text, mix_dependencies=True)}.fst'
         return text
 
     ####################################################################################################################
@@ -284,21 +284,21 @@ class NativeWFST(FFIObject):
         if not result:
             raise KaldiError("Failed fst__compute_md5")
         hash_str = decode(_ffi.string(hash_p))
-        self.filename = hash_str + '.fst'
+        self.filename = f'{hash_str}.fst'
         return hash_str
 
     ####################################################################################################################
 
     def has_path(self):
         """ Returns True iff there is a path (from start state to a final state). Uses BFS. Assumes can nonterminals succeed. """
-        result = self._lib.fst__has_path(self.native_obj)
-        return result
+        return self._lib.fst__has_path(self.native_obj)
 
     def has_eps_path(self, path_src_state, path_dst_state, eps_like_labels=frozenset()):
         """ Returns True iff there is a epsilon-like-only path from src_state to dst_state. Uses BFS. Does not follow nonterminals! """
         assert not eps_like_labels
-        result = self._lib.fst__has_eps_path(self.native_obj, path_src_state, path_dst_state)
-        return result
+        return self._lib.fst__has_eps_path(
+            self.native_obj, path_src_state, path_dst_state
+        )
 
     def does_match(self, target_words, wildcard_nonterms=(), include_silent=False, output_max_length=1024):
         """ Returns the olabels on a matching path if there is one, False if not. Uses BFS. Wildcard accepts zero or more words. """
@@ -311,9 +311,12 @@ class NativeWFST(FFIObject):
         if output_len_p[0] > output_max_length:
             raise KaldiError("fst__does_match needed too much output length")
         if result:
-            return tuple(self.olabel_to_word_map[symbol]
-                for symbol in output_p[0:output_len_p[0]]
-                if include_silent or symbol not in self.silent_olabels)
+            return tuple(
+                self.olabel_to_word_map[symbol]
+                for symbol in output_p[: output_len_p[0]]
+                if include_silent or symbol not in self.silent_olabels
+            )
+
         return False
 
     ####################################################################################################################
@@ -357,8 +360,8 @@ class NativeWFST(FFIObject):
 class SymbolTable(object):
 
     def __init__(self, filename=None):
-        self.word_to_id_map = dict()
-        self.id_to_word_map = dict()
+        self.word_to_id_map = {}
+        self.id_to_word_map = {}
         self.max_term_word_id = -1
         if filename is not None:
             self.load_text_file(filename)

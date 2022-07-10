@@ -61,9 +61,10 @@ def read(*parts):
 
 def find_version(*file_paths):
     version_file = read(*file_paths)
-    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
-    if version_match:
-        return version_match.group(1)
+    if version_match := re.search(
+        r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M
+    ):
+        return version_match[1]
     raise RuntimeError("Unable to find version string.")
 
 version = find_version('kaldi_active_grammar', '__init__.py')
@@ -72,7 +73,10 @@ if version.endswith('dev0'):
 
 # Set branch for Kaldi source repository (maybe we should use commits instead?)
 if not os.environ.get('KALDI_BRANCH'):
-    os.environ['KALDI_BRANCH'] = ('kag-v' + version) if ('dev' not in version) else 'origin/master'
+    os.environ['KALDI_BRANCH'] = (
+        f'kag-v{version}' if 'dev' not in version else 'origin/master'
+    )
+
 
 # Get the long description from the README file
 with open(os.path.join(here, 'README.md'), encoding='utf-8') as f:

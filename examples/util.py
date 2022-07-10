@@ -46,7 +46,18 @@ def do_recognition(compiler, decoder, print_partial=True, cap_dictation=True):
             if cap_dictation:
                 words = [(word.upper() if word_in_dictation else word) for (word, word_in_dictation) in zip(words, words_are_dictation_mask)]
             parsed_output = ' '.join(words)
-            print("End of phrase: eer=%.2f conf=%.2f%s, rule %s, %r" %
-                (expected_error_rate, confidence, (" [BAD]" if not is_acceptable_recognition else ""), recognized_rule, parsed_output))
+            print(
+                (
+                    "End of phrase: eer=%.2f conf=%.2f%s, rule %s, %r"
+                    % (
+                        expected_error_rate,
+                        confidence,
+                        "" if is_acceptable_recognition else " [BAD]",
+                        recognized_rule,
+                        parsed_output,
+                    )
+                )
+            )
+
 
             in_phrase = False

@@ -15,7 +15,7 @@ from .model import Model, convert_generic_model_to_agf
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(prog='python -m %s' % _name)
+    parser = argparse.ArgumentParser(prog=f'python -m {_name}')
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('-m', '--model_dir')
     parser.add_argument('-t', '--tmp_dir')

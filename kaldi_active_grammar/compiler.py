@@ -53,12 +53,12 @@ class KaldiRule(object):
         self.destroyed = False  # KaldiRule must not be used/referenced anymore
 
         # Public
-        self.fst = WFST() if not self.compiler.native_fst else NativeWFST()
+        self.fst = NativeWFST() if self.compiler.native_fst else WFST()
         self.matcher = None
         self.active = True
 
     def __repr__(self):
-        return "%s(%s, %s)" % (self.__class__.__name__, self.id, self.name)
+        return f"{self.__class__.__name__}({self.id}, {self.name})"
 
     fst_cache = property(lambda self: self.compiler.fst_cache)
     decoder = property(lambda self: self.compiler.decoder)
@@ -84,16 +84,12 @@ class KaldiRule(object):
                 self.fst.compute_hash(self.fst_cache.dependencies_hash)
                 assert self.filename
 
-        else:
-            # Handle compiling text WFST to binary
-            if not self._fst_text:
-                # self.fst.normalize_weights()
-                self._fst_text = self.fst.get_fst_text(fst_cache=self.fst_cache)
-                assert self.filename
-            # if 'dictation' in self._fst_text: _log.log(50, '\n    '.join(["%s: FST text:" % self] + self._fst_text.splitlines()))  # log _fst_text
-
+        elif not self._fst_text:
+            # self.fst.normalize_weights()
+            self._fst_text = self.fst.get_fst_text(fst_cache=self.fst_cache)
+            assert self.filename
         if self.compiler.cache_fsts and self.fst_cache.fst_is_current(self.filepath, touch=True):
-            _log.debug("%s: Skipped FST compilation thanks to FileCache" % self)
+            _log.debug(f"{self}: Skipped FST compilation thanks to FileCache")
             if self.compiler.decoding_framework == 'agf' and self.fst.native:
                 self.fst.compiled_native_obj = NativeWFST.load_file(self.filepath)
             self.compiled = True
@@ -105,7 +101,11 @@ class KaldiRule(object):
         if lazy:
             if not self.pending_compile:
                 # Special handling for rules that are an exact content match (and hence hash/name) with another (different) rule already in the compile_queue
-                if not any(self.filename == kaldi_rule.filename for kaldi_rule in self.compiler.compile_queue if self != kaldi_rule):
+                if all(
+                    self.filename != kaldi_rule.filename
+                    for kaldi_rule in self.compiler.compile_queue
+                    if self != kaldi_rule
+                ):
                     self.compiler.compile_queue.add(self)
                 else:
                     self.compiler.compile_duplicate_filename_queue.add(self)
@@ -117,14 +117,23 @@ class KaldiRule(object):
         # Must be thread-safe!
         with self.cls_lock:
             self.compiler.prepare_for_compilation()
-        _log.log(15, "%s: Compiling %sstate/%sarc FST%s%s" % (self, self.fst.num_states, self.fst.num_arcs,
-                (" (%dbyte)" % len(self._fst_text)) if self._fst_text else "",
-                (" to " + self.filename) if self.filename else ""))
+        _log.log(
+            15,
+            f'{self}: Compiling {self.fst.num_states}state/{self.fst.num_arcs}arc FST{" (%dbyte)" % len(self._fst_text) if self._fst_text else ""}{f" to {self.filename}" if self.filename else ""}',
+        )
+
         assert self.fst.native or self._fst_text
         if _log.isEnabledFor(3):
             if self.fst.native: self.fst.write_file('tmp_G.fst')
             if _log.isEnabledFor(2):
-                if self._fst_text: _log.log(2, '\n    '.join(["%s: FST text:" % self] + self._fst_text.splitlines()))  # log _fst_text
+                if self._fst_text:
+                    _log.log(
+                        2,
+                        '\n    '.join(
+                            [f"{self}: FST text:"] + self._fst_text.splitlines()
+                        ),
+                    )
+
                 elif self.fst.native: self.fst.print()
 
         try:
@@ -136,12 +145,7 @@ class KaldiRule(object):
                     self.compiler._compile_agf_graph(compile=True, nonterm=self.nonterm, input_text=self._fst_text, output_filename=self.filepath)
                     self._fst_text = None  # Free memory
 
-            elif self.compiler.decoding_framework == 'laf':
-                # self.compiler._compile_laf_graph(compile=True, nonterm=self.nonterm, input_text=self._fst_text, output_filename=self.filepath)
-                # Keep self._fst_text, for adding directly later
-                pass
-
-            else: raise KaldiError("unknown compiler.decoding_framework")
+            elif self.compiler.decoding_framework != 'laf': raise KaldiError("unknown compiler.decoding_framework")
         except Exception as e:
             raise KaldiError("Exception while compiling", self)  # Return this KaldiRule inside exception
 
@@ -176,7 +180,6 @@ class KaldiRule(object):
         elif self.compiler.decoding_framework == 'laf':
             assert self.fst.native
             return self.decoder.reload_grammar_fst(self.id, self.fst)
-            if not self.fst.native: return self.decoder.reload_grammar_fst_text(self.id, self._fst_text)  # FIXME: not implemented
         else: raise KaldiError("unknown compiler decoding_framework")
 
     @contextmanager
@@ -257,12 +260,12 @@ class Compiler(object):
         self.decoding_framework = framework
         assert self.decoding_framework in ('agf', 'laf')
         self.parsing_framework = 'token'
-        assert self.parsing_framework in ('token', 'text')
+        assert self.parsing_framework in {'token', 'text'}
         self.native_fst = bool(native_fst)
         self.cache_fsts = bool(cache_fsts)
         self.alternative_dictation = alternative_dictation
 
-        tmp_dir_needed = bool(self.cache_fsts)
+        tmp_dir_needed = self.cache_fsts
         self.model = Model(model_dir, tmp_dir, tmp_dir_needed=tmp_dir_needed)
         self._lexicon_files_stale = False
 
@@ -414,7 +417,13 @@ class Compiler(object):
                 config.update(grammar_prepend_nonterm=self.model.nonterm_words_offset, grammar_append_nonterm=self.model.nonterm_words_offset+1)
             config = { key: value.format(**format_kwargs) if isinstance(value, str) else value for (key, value) in config.items() }
 
-            if 1 != sum(int(i is not None) for i in [input_text, input_filename, input_fst]):
+            if (
+                sum(
+                    int(i is not None)
+                    for i in [input_text, input_filename, input_fst]
+                )
+                != 1
+            ):
                 raise KaldiError("must pass exactly one input")
             if input_text:
                 return self._agf_compiler.compile_graph(config, grammar_fst_text=input_text, return_graph=return_output_fst)
@@ -423,7 +432,7 @@ class Compiler(object):
             if input_fst:
                 return self._agf_compiler.compile_graph(config, grammar_fst=input_fst, return_graph=return_output_fst)
 
-        elif True:
+        else:
             # Pipeline-style
             assert not input_fst
             if input_text and input_filename: raise KaldiError("_compile_agf_graph passed both input_text and input_filename")
@@ -458,21 +467,6 @@ class Compiler(object):
             compile_command |= ExternalProcess.compile_graph_agf(*args, **ExternalProcess.get_debug_stderr_kwargs(self._log))
             ExternalProcess.execute_command_safely(compile_command, self._log)
 
-            # if True: (ExternalProcess.shell.echo('%s -> %s\n' % (len(input_text), get_time_spent())) | ExternalProcess.shell('cat') | 'stats.log+')()
-
-        else:
-            # CLI-style (deprecated!)
-            assert not input_fst
-            run = lambda cmd, **kwargs: run_subprocess(cmd, format_kwargs, "agf graph compilation step", format_kwargs_update=dict(input_filename=output_filename), **kwargs)
-            if compile: run("{exec_dir}fstcompile --isymbols={words_txt} --osymbols={words_txt} {input_filename}.txt {output_filename}")
-            # run("cp {input_filename} {output_filename}-G")
-            if compile: run("{exec_dir}fstarcsort --sort_type=ilabel {input_filename} {output_filename}")
-            if nonterm: run("{exec_dir}fstconcat {tmp_dir}nonterm_begin.fst {input_filename} {output_filename}")
-            if nonterm: run("{exec_dir}fstconcat {input_filename} {tmp_dir}nonterm_end.fst {output_filename}")
-            # run("cp {input_filename} {output_filename}-G")
-            run("{exec_dir}compile-graph --nonterm-phones-offset={nonterm_phones_offset} --read-disambig-syms={disambig_int} --verbose={verbose}"
-                + " {tree} {final_mdl} {L_disambig_fst} {input_filename} {output_filename}")
-
     def compile_plain_dictation_fst(self, g_filename=None, output_filename=None):
         if g_filename is None: g_filename = self._default_dictation_g_filepath
         if output_filename is None: output_filename = self._plain_dictation_hclg_fst_filepath
@@ -504,7 +498,12 @@ class Compiler(object):
     #         self.fst_cache.add(filepath)
 
     def compile_top_fst(self):
-        return self._build_top_fst(nonterms=['#nonterm:rule'+str(i) for i in range(self._max_rule_id + 1)], noise_words=self._noise_words).compile()
+        return self._build_top_fst(
+            nonterms=[
+                f'#nonterm:rule{str(i)}' for i in range(self._max_rule_id + 1)
+            ],
+            noise_words=self._noise_words,
+        ).compile()
 
     def compile_top_fst_dictation_only(self):
         return self._build_top_fst(nonterms=['#nonterm:dictation'], noise_words=self._noise_words).compile()

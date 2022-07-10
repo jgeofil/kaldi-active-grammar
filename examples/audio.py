@@ -109,16 +109,14 @@ class MicAudio(object):
 
     def read(self, nowait=False):
         """Return a block of audio data. If nowait==False, waits for a block if necessary; else, returns False immediately if no block is available."""
-        if self.stream or (self.flush_queue and not self.buffer_queue.empty()):
-            if nowait:
-                try:
-                    return self.buffer_queue.get_nowait()  # Return good block if available
-                except queue.Empty as e:
-                    return False  # Queue is empty for now
-            else:
-                return self.buffer_queue.get()  # Wait for a good block and return it
-        else:
+        if not self.stream and (not self.flush_queue or self.buffer_queue.empty()):
             return None  # We are done
+        if not nowait:
+            return self.buffer_queue.get()  # Wait for a good block and return it
+        try:
+            return self.buffer_queue.get_nowait()  # Return good block if available
+        except queue.Empty as e:
+            return False  # Queue is empty for now
 
     def read_loop(self, callback):
         """Block looping reading, repeatedly passing a block of audio data to callback."""
@@ -200,7 +198,7 @@ class VADAudio(MicAudio):
             Example: (block, ..., block, None, block, ..., block, None, ...)
                       |----phrase-----|        |----phrase-----|
         """
-        assert end_padding_ms == None, "end_padding_ms not supported yet"
+        assert end_padding_ms is None, "end_padding_ms not supported yet"
         num_start_window_blocks = max(1, int(start_window_ms // self.BLOCK_DURATION_MS))
         num_start_padding_blocks = max(0, int((start_padding_ms or 0) // self.BLOCK_DURATION_MS))
         num_end_window_blocks = max(1, int(end_window_ms // self.BLOCK_DURATION_MS))
@@ -272,7 +270,7 @@ class VADAudio(MicAudio):
                         ring_buffer.clear()
 
     def debug_print_simple(self):
-        print("block_duration_ms=%s" % self.BLOCK_DURATION_MS)
+        print(f"block_duration_ms={self.BLOCK_DURATION_MS}")
         for block in self.iter(nowait=False):
             is_speech = self.vad.is_speech(block, self.SAMPLE_RATE)
             print('|' if is_speech else '.', end='')

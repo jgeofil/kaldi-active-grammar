@@ -73,7 +73,18 @@ for block in audio_iterator:
         recognized_rule, words, words_are_dictation_mask = compiler.parse_output(output)
         is_acceptable_recognition = bool(recognized_rule)
         parsed_output = ' '.join(words)
-        print("End of phrase: eer=%.2f conf=%.2f%s, rule %s, %r" %
-            (expected_error_rate, confidence, (" [BAD]" if not is_acceptable_recognition else ""), recognized_rule, parsed_output))
+        print(
+            (
+                "End of phrase: eer=%.2f conf=%.2f%s, rule %s, %r"
+                % (
+                    expected_error_rate,
+                    confidence,
+                    "" if is_acceptable_recognition else " [BAD]",
+                    recognized_rule,
+                    parsed_output,
+                )
+            )
+        )
+
 
         in_phrase = False

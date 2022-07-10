@@ -32,7 +32,7 @@ class FFIObject(object):
 
     @classmethod
     def init_ffi(cls):
-        cls._lib = _ffi.init_once(cls._init_ffi, cls.__name__ + '._init_ffi')
+        cls._lib = _ffi.init_once(cls._init_ffi, f'{cls.__name__}._init_ffi')
 
     @classmethod
     def _init_ffi(cls):

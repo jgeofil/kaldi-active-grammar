@@ -20,8 +20,7 @@ def get_args():
                         'symbols, one per line.  E.g. #nonterm:contact_list')
     parser.add_argument('output_words_txt', type=str, help='Filename of output '
                         'words.txt file.  May be the same as input-words-txt.')
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 
@@ -62,7 +61,7 @@ def read_nonterminals(filename):
        symbols as a list of strings, e.g.
        ['#nonterm:contact_list', '#nonterm:phone_number', ... ]. """
     ans = [line.strip(" \t\r\n") for line in open(filename, 'r')]
-    if len(ans) == 0:
+    if not ans:
         raise RuntimeError("The file {0} contains no nonterminal symbols.".format(filename))
     for nonterm in ans:
         if nonterm[:9] != '#nonterm:':
